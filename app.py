@@ -1,16 +1,23 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# In[1]:
+
 
 from flask import Flask, jsonify, request
-import flask
 import pandas as pd
 import numpy as np
 import joblib
 import time
 
 
+# In[6]:
+
+
 app = Flask(__name__)
+
+
+# In[8]:
 
 
 # prepare input for base learners
@@ -21,6 +28,15 @@ def prepare_input(X_q):
     # define the categorical & numerical features which are taken for training the model
     cat_features = ['job', 'marital', 'education', 'default', 'housing', 'loan', 'contact', 'month', 'day_of_week', 'poutcome']
     num_features = ['age', 'duration', 'campaign', 'pdays', 'previous', 'cons.price.idx', 'cons.conf.idx', 'nr.employed']
+    
+    # convert all values to lower case for all categorical variables
+    for feature in cat_features:
+        X_q[feature] = X_q[feature].str.lower()
+        # When converting categorical features using one hot encoding / multiple columns are being named with same feature name
+        # which is not allowed in ensembles like xgboost, catboost and lgbm
+        X_q.loc[X_q[feature]=='unknown', feature] = feature+'_unknown'
+        X_q.loc[X_q[feature]=='no', feature] = feature+'_no'
+        X_q.loc[X_q[feature]=='yes', feature] = feature+'_yes'
     
     # load standard scaler from pickle file
     scaler = joblib.load('num_features_scaler.pkl')
@@ -45,21 +61,20 @@ def prepare_input(X_q):
     return X_q_final
 
 
+# In[ ]:
+
 
 @app.route('/predict', methods=['POST'])
-def final_predict(y=''):
+def final_predict(X_q, y=''):
     """This function predcts target label for query instance, the prediction is from trained meta model """    
     
     start_time = time.time()
 
     # get the form inputs through request
     form_inputs = request.form.to_dict()
-    # print(form_inputs)
-    X_q = pd.DataFrame(np.asarray(list(form_inputs.values())).reshape(1,-1), columns=form_inputs.keys())
-    X_q.drop('name', axis=1, inplace=True)
-    # print(X_q)
+    print(form_inputs)
     
-    # return form_inputs
+    return True
     
     # data pre processing and prepare the input to predict through meta model
     X_input = prepare_input(X_q)
@@ -93,13 +108,14 @@ def final_predict(y=''):
     time_for_prediction = str(end_time - start_time) + ' seconds'
     
     # handling true label
-    true_label = 'Positive' if y==1 else 'Negative'
-    if y=='': true_label = '--NA--'
+    y = 'Positive' if y==1 else 'Negative'
     
-    response = jsonify({'Time taken for Prediction': time_for_prediction, 'True label': true_label, 'prediction': prediction})
+    response = jsonify({'prediction': prediction, 'True label': y, 'Time taken for Prediction': time_for_prediction})
     # return predicted label, time taken for predicting and the original target label if passed as input
     return response
 
+
+# In[10]:
 
 
 @app.route('/index')
@@ -107,14 +123,23 @@ def index():
     return flask.render_template('index.html')
 
 
+# In[13]:
+
 
 @app.route('/')
 def welcome():
     return 'Welcome to the Lead Score Prediction home page'
 
 
+# In[12]:
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5050)
+
+
+# In[ ]:
+
+
 
 
